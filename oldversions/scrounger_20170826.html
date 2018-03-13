@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<title>Session History Scrounger (with lz4 support)</title>
+</head>
+<body>
+<h1>Session History Scrounger</h1>
+<p>Drag and drop one session history file onto the empty text box (e.g., recovery.js, previous.jsonlz4, etc.). This file is not sent to the network, it is only read within this page in Firefox.</p>
+<textarea id="drop_zone" ondrop="drop_handler(event);"  ondragover="dragover_handler(event);"  ondragend="dragend_handler(event);" style="height:6em; width:80%; border:2px solid #000;" autocomplete="false"></textarea>
+<p><button onclick="parsejson()" id="btnScrounge" disabled>Scrounge URLs</button> <button onclick="SaveList()" id="btnSave" disabled>Save List</button></p>
+<p><em>Note: To try a different file, reload this page bypassing the cache. Windows: Ctrl+Shift+r. Mac: Command+Shift+r. Or hold down the Shift key while clicking the reload button in the address bar.</em></p>
+<div id="output" style="border-top:2px solid #000;">
+<style type="text/css">
+.bhtoggle {cursor:pointer;}
+.bhtoggle:hover::after {content: " {click to toggle display}"; color: blue;}
+.backhist > div {display:none;}
+</style>
+<script type="text/javascript">
+function toggleBH(el){
+	var tgtdiv = el.nextElementSibling;
+	if (tgtdiv.style.display != 'block') tgtdiv.style.display = 'block';
+	else tgtdiv.style.display = '';
+}
+</script>
+<p class="attrib">Extracted using <a href="https://www.jeffersonscher.com/res/scrounger.html">https://www.jeffersonscher.com/res/scrounger.html</a></p>
+</div>
+<p>Copyright &copy; 2017 Jefferson Scher (<a href="https://opensource.org/licenses/BSD-3-Clause">BSD-3-Clause License</a>). lz4.js &copy; 2014 Pierre Curto (<a href="https://github.com/pierrec/node-lz4/blob/master/LICENSE">MIT License</a>). FileSaver.js &copy; 2016 Eli Grey (<a href="https://github.com/eligrey/FileSaver.js/blob/master/LICENSE.md">MIT License</a>). MDN code samples &copy; Mozilla Contributors or Public Domain (<a href="https://developer.mozilla.org/en-US/docs/MDN/About#Copyrights_and_licenses">License</a>). No claim to your data! Updated 2017-08-26. (<a href="scrounger_json.html">Original Scrounger</a>)</p>
+<script type="text/javascript">
+function parsejson(){
+	if (document.getElementById('scrounged')){
+		if(!confirm('Remove previous list of windows and tabs now?')) return;
+		document.getElementById('scrounged').remove();
+		if (document.getElementById('msgproc')) document.getElementById('msgproc').remove();
+	}
+	var txt = document.getElementById('drop_zone');
+	if (txt.value.length > 0){
+		document.getElementById('btnScrounge').setAttribute('disabled', 'disabled');
+		document.getElementById('btnScrounge').insertAdjacentHTML('afterend', ' <span id="msgproc" style="font-style:italic">Processing...</span> ');
+		buildList(txt);
+	}
+	else alert('Session history file contents could not be read?');
+}
+function scrub(t){
+	t=t.replace(/&/g,'&amp;'); t=t.replace(/>/g,'&gt;'); t=t.replace(/</g,'&lt;'); 
+	return t;
+} 
+function buildList(inp){
+	var out=new Array(); 
+	var inpval = inp.value;
+	if (inpval.indexOf('"lastSessionState":{"version":[') > -1) inpval = inpval.split('"lastSessionState":{"version":[')[1];
+	var sess=inpval.split('"_closedWindows":[');
+	for (var n=0; n < sess.length; n++){
+		var winds = sess[n].split('{"tabs":[');
+		if(n==0){
+			out.push('<h2>Open Windows</h2>');
+		} else {
+			if (winds.length > 1) out.push('<h2>Closed Windows</h2>');
+		}
+		for (var i=1; i < winds.length; i++) {
+			if (n==1) out.push('<h3 style=\'border-bottom:1px solid #000\'>Closed Window ' + i + '</h3>\n<div style=\'margin-left:2.25em\'>'); 
+			else out.push('<h3 style=\'border-bottom:1px solid #000\'>Open Window ' + i + '</h3>\n<div style=\'margin-left:2.25em\'>'); 
+			var wtabs = winds[i].split('"_closedTabs":[');
+			for (var m=0; m < wtabs.length; m++){
+				var tabs = wtabs[m].split('{"entries":[');
+				for (var j=1; j < tabs.length; j++) {
+					if (m==1 && j==1) out.push('<div style=\'margin-left:2.25em\'><h4 style=\'border-top:1px solid #888\'>(Closed Tabs)</h4>');
+					out.push('<h4>Tab ' + j + '</h4>\n<div class=\'urllist\'>'); 
+					var strTemp = tabs[j].split(',"children":[')[0]; // ignore children
+					var taburls = strTemp.split('{"url":"');
+					for (var k=taburls.length - 1; k >= 1; k--) {
+						var strURL = taburls[k].substr(0, taburls[k].indexOf('","'));
+						var strTitle = taburls[k].split('"title":"')[1] || '[Title Not Available]';
+						strTitle = strTitle.substr(0, strTitle.indexOf('","'));
+						if (strTitle.length == 0) strTitle = '[Title Not Available]';
+						if (k == taburls.length - 2) out.push('<div style=\'margin-left:2.25em\' class=\'backhist\'><span class=\'bhtoggle\' onclick=\'toggleBH(this);\'>&larr; Back <em>(earlier pages visited in this tab)</em>:</span>\n<div>');
+						out.push('<p><strong>' + scrub(strTitle) + '</strong><br><a href=\'' + strURL + '\' target=\'_blank\'>' + scrub(strURL) + '</a></p>');
+						if (taburls.length > 2 && k == 1) out.push('</div></div>');
+					}
+					out.push('</div>');
+				}
+				out.push('</div>');
+			}
+		} 
+	}
+	var elOut = document.getElementById('output');
+	var finfo = document.querySelectorAll('#fileinfo span');
+	elOut.insertAdjacentHTML('afterbegin', '\n<div id="scrounged"><h1 style="margin-bottom:0;">Session History</h1>\n<p style="margin-top:0;"><em>Extracted from</em> ' + finfo[0].textContent + ' <em>as of</em> '+ finfo[1].textContent + '.</p>\n' + out.join('\n') + '\n</div><!--hi-->');
+	document.getElementById('msgproc').insertAdjacentHTML('beforeend', '<span style="font-style:italic">done!</span> ');
+	document.getElementById('btnSave').removeAttribute('disabled');
+}
+function SaveList(){
+	var fn = document.querySelectorAll('#fileinfo span')[0].textContent;
+	saveAs(
+		  new Blob(
+			  ['<html><head><meta http-equiv="Content-Type" content="text/html; charset=utf-8"><title>Extracted Session History</title></head><body>'+document.getElementById('output').innerHTML+'</body></html>']
+			, {type: 'text/html;charset=UTF-8'}
+		)
+		, 'sessionhist('+fn.replace(/\./g,'_')+').html'
+	);
+}
+function CreateShortcut(){
+	saveAs(
+		  new Blob(
+			  ['[InternetShortcut]\nURL='+location.href]
+			, {type: 'application/x-ms-shortcut'}
+		)
+		, document.title+'.url'
+	);
+}
+function readfile(f){
+	// Add notation below textarea
+	if (document.getElementById('fileinfo')) document.getElementById('fileinfo').remove();
+	document.getElementById('drop_zone').insertAdjacentHTML('afterend', '<p id="fileinfo">File name: <span>'+f.name+'</span>; Size: '+f.size+'; last modified <span>'+new Date(f.lastModified).toLocaleString()+'</span></p>');
+	// Use a FileReader to pull the contents out of the file and drop it into the textarea element
+	var reader = new FileReader();
+	reader.onload = function(evt) { // handle result of the file read
+		if (typeof evt.target.result == 'string') document.getElementById('drop_zone').value = evt.target.result;
+		else {
+			let utf8decoder = new TextDecoder('utf-8');
+			var jsontxt = utf8decoder.decode(decomp(evt.target.result));
+			document.getElementById('drop_zone').value = jsontxt;
+		}
+	};
+	// Assume anything without .jsonlz4 in the name is uncompressed
+	if (f.name.indexOf('.jsonlz4') == -1) reader.readAsText(f);
+	else reader.readAsArrayBuffer(f);
+}
+function decomp(arrbuff){
+	// See: https://github.com/pierrec/node-lz4
+	// Create typed array from ArrayBuffer
+	var u8arrbuff = new Uint8Array(arrbuff);
+	// Is it a standard JSON file with jsonlz4 somewhere in its name?
+	if ('{' == String.fromCharCode(u8arrbuff[0])) {
+		return u8arrbuff;
+	}
+	// Compute uncompressed data size
+	var u8sz = u8arrbuff.slice(8, 12);
+	var origLen = u8sz[0] + (u8sz[1] * 256) + (u8sz[2] * 256 * 256) + (u8sz[3] * 256 * 256 * 256);
+	// Extract compressed data (past header)
+	jsonstart = 12;
+	var u8comp = u8arrbuff.slice(jsonstart);
+	// Create LZ4 buffer
+	var Buffer = require('buffer').Buffer;
+	var LZ4 = require('lz4');
+	var comp = new Buffer(u8comp);
+	var orig = new Buffer(origLen);
+	// Do the deed
+	var decomLen = LZ4.decodeBlock(comp, orig);
+	return orig.slice(0, decomLen);
+}
+// copied/adapted from https://developer.mozilla.org/en-US/docs/Web/API/HTML_Drag_and_Drop_API/File_drag_and_drop
+function drop_handler(ev) {
+	ev.preventDefault();
+	// If dropped items aren't files, reject them
+	var dt = ev.dataTransfer;
+	if (dt.items) {
+		// Use DataTransferItemList interface to access the file(s) (break after first file opened)
+		for (var i=0; i < dt.items.length; i++) {
+			if (dt.items[i].kind == "file") {
+				readfile(dt.items[i].getAsFile());
+				document.getElementById('btnScrounge').removeAttribute('disabled');
+				break;
+			}
+		}
+		} else { // ** NOT TESTED **
+		// Use DataTransfer interface to access the file(s)  (break after first file opened)
+		for (var i=0; i < dt.files.length; i++) {
+			readfile(dt.files[i]); 
+			document.getElementById('btnScrounge').removeAttribute('disabled');
+			break;
+		}  
+	}
+}
+function dragover_handler(ev) {
+  console.log("dragOver");
+  // Prevent default select and drag behavior
+  ev.preventDefault();
+}
+function dragend_handler(ev) {
+  console.log("dragEnd");
+  // Remove all of the drag data
+  var dt = ev.dataTransfer;
+  if (dt.items) {
+    // Use DataTransferItemList interface to remove the drag data
+    for (var i = 0; i < dt.items.length; i++) {
+      dt.items.remove(i);
+    }
+  } else {
+    // Use DataTransfer interface to remove the drag data
+    ev.dataTransfer.clearData();
+  }
+}
+</script>
+<script type="text/javascript" src="FileSaver.min.js"></script>
+<script type="text/javascript" src="lz4.js"></script>
+<style>.attrib{display:none}</style>
+</body>
+</html>
