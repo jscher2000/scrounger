@@ -10,7 +10,7 @@
 <p>Drag and drop one session history file onto the empty text box<span> (<button onclick="document.getElementById('sesshelp').style.display='block'; this.parentNode.style.display='none';">HELP</button>)</span>. This file is not sent to the network, it is only read within this page in Firefox.</p>
 <div id="sesshelp" style="display:none; background-color:#ffc; padding:0 1em; border:1px solid #333; margin-bottom:1em;">
 <p>This tool can read URLs out of the following types of session history files:</p>
-<ul><li>Firefox 56+ compressed files such as recovery.jsonlz4 or previous.jsonlz4 from: [profile]\sessionstore-backups</li><li>Firefox 45-55 uncompressed files such as recovery.js or previous.js from: [profile]\sessionstore-backups</li><li>Session Manager 2.x .session files stored from: [profile]\sessions</li><li>Tab Session Manager "storage.js" file from: [profile]\browser-extension-data\Tab-Session-Manager@sienori (cannot be converted to a native Firefox sessionstore.js-format file)</li><li>Session Boss "storage.js" file from: [profile]\browser-extension-data\sessionboss@william.wong (cannot be converted to a native Firefox sessionstore.js-format file)</li></ul>
+<ul><li>Firefox 56+ compressed files such as recovery.jsonlz4 or previous.jsonlz4 from: [profile]\sessionstore-backups</li><li>Firefox 45-55 uncompressed files such as recovery.js or previous.js from: [profile]\sessionstore-backups</li><li>Session Manager 2.x .session files stored from: [profile]\sessions</li><li>Tab Session Manager "storage.js" file from: [profile]\browser-extension-data\Tab-Session-Manager@sienori (cannot be converted to a native Firefox sessionstore.js-format file)</li><li>Session Boss "storage.js" file from: [profile]\browser-extension-data\sessionboss@william.wong (cannot be converted to a native Firefox sessionstore.js-format file)</li><li>OneTab "storage.js" file from: [profile]\browser-extension-data\extension@one-tab.com (cannot be converted to a native Firefox sessionstore.js-format file)</li></ul>
 <p>If you are unfamiliar with how to locate your [profile] folder, please see: <a href="https://support.mozilla.org/kb/profiles-where-firefox-stores-user-data" target="_blank">Profiles - Where Firefox stores your bookmarks, passwords and other user data</a> on Mozilla Support.</p>
 </div>
 <textarea id="drop_zone" ondrop="drop_handler(event);"  ondragover="dragover_handler(event);"  ondragend="dragend_handler(event);" ondragenter="dragenter_handler(event);" ondragleave="dragleave_handler(event);" style="height:7em; width:80%; border:2px solid #000;" autocomplete="false"></textarea>
@@ -31,7 +31,7 @@ function toggleBH(el){
 </script>
 <p class="attrib">Extracted using <a href="https://www.jeffersonscher.com/res/scrounger.html">https://www.jeffersonscher.com/res/scrounger.html</a></p>
 </div>
-<p>Copyright &copy; 2018 Jefferson Scher (<a href="https://opensource.org/licenses/BSD-3-Clause">BSD-3-Clause License</a>). lz4.js &copy; 2014 Pierre Curto (<a href="https://github.com/pierrec/node-lz4/blob/master/LICENSE">MIT License</a>). FileSaver.js &copy; 2016 Eli Grey (<a href="https://github.com/eligrey/FileSaver.js/blob/master/LICENSE.md">MIT License</a>). MDN code samples &copy; Mozilla Contributors or Public Domain (<a href="https://developer.mozilla.org/en-US/docs/MDN/About#Copyrights_and_licenses">License</a>). No claim to your data! Updated 2018-03-25. (<a href="scrounger_json.html">Original Scrounger</a>)</p>
+<p>Copyright &copy; 2018 Jefferson Scher (<a href="https://opensource.org/licenses/BSD-3-Clause">BSD-3-Clause License</a>). lz4.js &copy; 2014 Pierre Curto (<a href="https://github.com/pierrec/node-lz4/blob/master/LICENSE">MIT License</a>). FileSaver.js &copy; 2016 Eli Grey (<a href="https://github.com/eligrey/FileSaver.js/blob/master/LICENSE.md">MIT License</a>). MDN code samples &copy; Mozilla Contributors or Public Domain (<a href="https://developer.mozilla.org/en-US/docs/MDN/About#Copyrights_and_licenses">License</a>). No claim to your data! Updated 2018-05-03. (<a href="scrounger_json.html">Original Scrounger</a>)</p>
 <script type="text/javascript">
 // Compatibility check
 if (typeof(window.TextDecoder) !== 'function'){
@@ -64,6 +64,7 @@ function parsejson(){
 		document.getElementById('btnScrounge').insertAdjacentHTML('afterend', ' <span id="msgproc" style="font-style:italic">Processing...</span> ');
 		if (txt.value.indexOf('{"sessions":') === 0 && txt.value.indexOf('{"tabs":[') < 0) buildTSMList(txt);
 		else if (txt.value.indexOf('{"backupSessionStore":') === 0) buildSBossList(txt);
+		else if (txt.value.indexOf('{"state":"{\\"tabGroups\\":') === 0) buildOneTabList(txt);
 		else buildList(txt);
 	}
 	else alert('Session history file contents could not be read?');
@@ -201,6 +202,40 @@ function buildSBossList(inp){
 	document.getElementById('msgproc').insertAdjacentHTML('beforeend', '<span style="font-style:italic">done!</span> ');
 	document.getElementById('btnSave').removeAttribute('disabled');
 }
+function buildOneTabList(inp){
+	var out=new Array(); 
+	var inpval = inp.value;
+	var sess=inpval.split('\\"tabsMeta\\":');
+	for (var n=1; n < sess.length; n++){
+		var namesplit = sess[n-1].split(',\\"label\\":\\"');
+		if (namesplit.length === 2){
+			out.push('<h2>Tab Group '+n+': '+ namesplit[1].substr(0, namesplit[1].indexOf('\\"'))+'</h2>');
+		} else {
+			out.push('<h2>Tab Group '+n+'</h2>');
+		}
+		var tabs = sess[n].split(',\\"url\\":\\"');
+		out.push('<div style=\'margin-left:2.25em\'>');
+		for (var j=1; j < tabs.length; j++) {
+			out.push('<h4>Tab ' + j + '</h4>\n<div class=\'urllist\'>'); 
+			var strTemp = tabs[j];
+			var strURL = strTemp.substr(0, strTemp.indexOf('\\",'));
+			var tabtitle = strTemp.split(',\\"title\\":\\"');
+			if (tabtitle.length === 2){
+				strTitle = tabtitle[1].substr(0, tabtitle[1].indexOf('\\"}'));
+			} else {
+				strTitle = '[Title Not Available]';
+			}
+			out.push('<p><strong>' + scrub(strTitle) + '</strong><br><a href=\'' + strURL + '\' target=\'_blank\'>' + scrub(strURL) + '</a></p>');
+			out.push('</div>');
+		}
+		out.push('</div>');
+	}
+	var elOut = document.getElementById('output');
+	var finfo = document.querySelectorAll('#fileinfo span');
+	elOut.insertAdjacentHTML('afterbegin', '\n<div id="scrounged"><h1 style="margin-bottom:0;">OneTab Tab Gropus</h1>\n<p style="margin-top:0;"><em>Extracted from</em> ' + finfo[0].textContent + ' <em>as of</em> '+ finfo[1].textContent + '.</p>\n' + out.join('\n') + '\n</div><!--hi-->');
+	document.getElementById('msgproc').insertAdjacentHTML('beforeend', '<span style="font-style:italic">done!</span> ');
+	document.getElementById('btnSave').removeAttribute('disabled');
+}
 function SaveList(){
 	var fn = document.querySelectorAll('#fileinfo span')[0].textContent;
 	saveAs(
@@ -274,6 +309,10 @@ function SaveJSON(){
 	}
 	if (txt.indexOf('{"backupSessionStore":') === 0){
 		alert('Contents of the box look like a Session Boss storage.js file.\n\nCurrently unable to convert to Firefox\'s native format.');
+		return;
+	}
+	if (txt.indexOf('{"state":"{\\"tabGroups\\":') === 0){
+		alert('Contents of the box look like a OneTab storage.js file.\n\nCurrently unable to convert to Firefox\'s native format.');
 		return;
 	}
 	if (txt.indexOf('[SessionManager v2]') === 0){
