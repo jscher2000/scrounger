@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <title>Session History Scrounger for Firefox (with lz4 support)</title>
 </head>
@@ -12,9 +13,9 @@
 <ul><li>Firefox 56+ compressed files such as recovery.jsonlz4 or previous.jsonlz4 from: [profile]\sessionstore-backups</li><li>Firefox 45-55 uncompressed files such as recovery.js or previous.js from: [profile]\sessionstore-backups</li><li>Session Manager 2.x .session files stored from: [profile]\sessions</li><li>Tab Session Manager "storage.js" file from: [profile]\browser-extension-data\Tab-Session-Manager@sienori (cannot be converted to a native Firefox sessionstore.js-format file)</li><li>Session Boss "storage.js" file from: [profile]\browser-extension-data\sessionboss@william.wong (cannot be converted to a native Firefox sessionstore.js-format file)</li></ul>
 <p>If you are unfamiliar with how to locate your [profile] folder, please see: <a href="https://support.mozilla.org/kb/profiles-where-firefox-stores-user-data" target="_blank">Profiles - Where Firefox stores your bookmarks, passwords and other user data</a> on Mozilla Support.</p>
 </div>
-<textarea id="drop_zone" ondrop="drop_handler(event);"  ondragover="dragover_handler(event);"  ondragend="dragend_handler(event);" style="height:7em; width:80%; border:2px solid #000;" autocomplete="false"></textarea>
+<textarea id="drop_zone" ondrop="drop_handler(event);"  ondragover="dragover_handler(event);"  ondragend="dragend_handler(event);" ondragenter="dragenter_handler(event);" ondragleave="dragleave_handler(event);" style="height:7em; width:80%; border:2px solid #000;" autocomplete="false"></textarea>
 <p><button onclick="parsejson()" id="btnScrounge" disabled>Scrounge URLs</button> <button onclick="SaveList()" id="btnSave" disabled>Save List (HTML with links)</button> <button onclick="SaveJSON()" id="btnJSON" disabled>Save Uncompressed JSON (sessionstore.js)</button></p>
-<p><em>Note: To try a different file, reload this page bypassing the cache. Windows: Ctrl+Shift+r. Mac: Command+Shift+r. Or hold down the Shift key while clicking the reload button in the address bar.</em></p>
+<p><em>Note: To scrounge a different file, reload this page.</em></p>
 <div id="output" style="border-top:2px solid #000;">
 <style type="text/css">
 .bhtoggle {cursor:pointer;}
@@ -30,8 +31,27 @@ function toggleBH(el){
 </script>
 <p class="attrib">Extracted using <a href="https://www.jeffersonscher.com/res/scrounger.html">https://www.jeffersonscher.com/res/scrounger.html</a></p>
 </div>
-<p>Copyright &copy; 2018 Jefferson Scher (<a href="https://opensource.org/licenses/BSD-3-Clause">BSD-3-Clause License</a>). lz4.js &copy; 2014 Pierre Curto (<a href="https://github.com/pierrec/node-lz4/blob/master/LICENSE">MIT License</a>). FileSaver.js &copy; 2016 Eli Grey (<a href="https://github.com/eligrey/FileSaver.js/blob/master/LICENSE.md">MIT License</a>). MDN code samples &copy; Mozilla Contributors or Public Domain (<a href="https://developer.mozilla.org/en-US/docs/MDN/About#Copyrights_and_licenses">License</a>). No claim to your data! Updated 2018-03-09. (<a href="scrounger_json.html">Original Scrounger</a>)</p>
+<p>Copyright &copy; 2018 Jefferson Scher (<a href="https://opensource.org/licenses/BSD-3-Clause">BSD-3-Clause License</a>). lz4.js &copy; 2014 Pierre Curto (<a href="https://github.com/pierrec/node-lz4/blob/master/LICENSE">MIT License</a>). FileSaver.js &copy; 2016 Eli Grey (<a href="https://github.com/eligrey/FileSaver.js/blob/master/LICENSE.md">MIT License</a>). MDN code samples &copy; Mozilla Contributors or Public Domain (<a href="https://developer.mozilla.org/en-US/docs/MDN/About#Copyrights_and_licenses">License</a>). No claim to your data! Updated 2018-03-25. (<a href="scrounger_json.html">Original Scrounger</a>)</p>
 <script type="text/javascript">
+// Compatibility check
+if (typeof(window.TextDecoder) !== 'function'){
+	var p1 = document.createElement('p');
+	p1.setAttribute('style', 'border:3px solid red; padding:12px 30px;');
+	p1.innerHTML = 'Unfortunately, this tool does not work in your current browser. Sorry. Please try Firefox, Chrome, Chromium or Opera instead. <br>' +
+		'(IE and Edge do not support <a href="https://developer.mozilla.org/en-US/docs/Web/API/TextDecoder#Browser_compatibility">TextDecoder</a>. ' +
+		'IE also does not support <a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/TypedArray#Browser_compatibility">TypedArray.slice()</a>; unclear whether Edge or Safari supports it.)';
+	document.body.insertBefore(p1, document.body.firstChild);
+}
+/* 
+   If you are reading this comment, perhaps you might want to polyfill the missing functionality? Here's a start:
+   https://github.com/inexorabletash/text-encoding/
+*/
+// Clean up form controls on reload (i.e., not bypassing cache)
+document.getElementById('drop_zone').value = '';
+document.getElementById('btnScrounge').setAttribute('disabled', 'disabled');
+document.getElementById('btnSave').setAttribute('disabled', 'disabled');
+document.getElementById('btnJSON').setAttribute('disabled', 'disabled');
+// Functions used in the page
 function parsejson(){
 	if (document.getElementById('scrounged')){
 		if(!confirm('Remove previous list of windows and tabs now?')) return;
@@ -214,8 +234,8 @@ function readfile(f){
 			document.getElementById('drop_zone').value = jsontxt;
 		}
 	};
-	// Assume anything without .jsonlz4 in the name is uncompressed
-	if (f.name.indexOf('.jsonlz4') == -1) reader.readAsText(f);
+	// Assume anything without .jsonlz4 or .baklz4 in the name is uncompressed
+	if (f.name.indexOf('.jsonlz4') == -1 && f.name.indexOf('.baklz4') == -1) reader.readAsText(f);
 	else reader.readAsArrayBuffer(f);
 }
 function decomp(arrbuff){
@@ -252,6 +272,10 @@ function SaveJSON(){
 		alert('Contents of the box look like a Tab Session Manager storage.js file.\n\nCurrently unable to convert to Firefox\'s native format.');
 		return;
 	}
+	if (txt.indexOf('{"backupSessionStore":') === 0){
+		alert('Contents of the box look like a Session Boss storage.js file.\n\nCurrently unable to convert to Firefox\'s native format.');
+		return;
+	}
 	if (txt.indexOf('[SessionManager v2]') === 0){
 		txt = txt.substr(txt.indexOf('{'));
 	}
@@ -273,6 +297,8 @@ function SaveJSON(){
 // copied/adapted from https://developer.mozilla.org/en-US/docs/Web/API/HTML_Drag_and_Drop_API/File_drag_and_drop
 function drop_handler(ev) {
 	ev.preventDefault();
+	// Clear colors
+	dragleave_handler(ev);
 	// If dropped items aren't files, reject them
 	var dt = ev.dataTransfer;
 	if (dt.items) {
@@ -296,7 +322,6 @@ function drop_handler(ev) {
 	}
 }
 function dragover_handler(ev) {
-  console.log("dragOver");
   // Prevent default select and drag behavior
   ev.preventDefault();
 }
@@ -312,6 +337,22 @@ function dragend_handler(ev) {
   } else {
     // Use DataTransfer interface to remove the drag data
     ev.dataTransfer.clearData();
+  }
+}
+function dragenter_handler(ev) {
+  // Color it up
+  var tgt = ev.target;
+  if (tgt.id == 'drop_zone') {
+    tgt.style.backgroundColor = '#ff8';
+	tgt.style.borderColor = 'blue';
+  }
+}
+function dragleave_handler(ev) {
+  // Default colors
+  var tgt = ev.target;
+  if (tgt.id == 'drop_zone') {
+    tgt.style.backgroundColor = '#fff';
+	tgt.style.borderColor = '#000';
   }
 }
 </script>
