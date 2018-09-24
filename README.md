@@ -1,6 +1,8 @@
 # scrounger
 Session History Scrounger for Firefox
 
+_Note: The following new repository may update more promptly than this one:_ https://github.com/jscher2000/Firefox-File-Utilities
+
 This script decompresses LZ4-compressed session history files such as recovery.jsonlz4. It can extract URLs from a variety of session history files without requiring valid JSON (it splits on various text strings).
 
 From https://www.jeffersonscher.com/res/scrounger.html 
